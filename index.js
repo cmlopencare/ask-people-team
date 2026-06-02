@@ -11,8 +11,6 @@ const slack = new App({
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
-const normalizeId = (id) => (id || '').replace(/-/g, '');
-
 async function getPageText(pageId) {
   try {
     const response = await notion.blocks.children.list({ block_id: pageId });
@@ -37,6 +35,7 @@ async function getPageText(pageId) {
         text += block.numbered_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
       }
       if (block.type === 'child_page') {
+        console.log('Reading subpage:', block.child_page.title);
         text += '\n## ' + block.child_page.title + '\n';
         text += await getPageText(block.id);
       }
@@ -50,26 +49,10 @@ async function getPageText(pageId) {
 
 async function getNotionContent() {
   try {
-    const peopleOpsId = process.env.NOTION_PAGE_ID;
-    const response = await notion.search({
-      filter: { property: 'object', value: 'page' },
-      page_size: 50,
-    });
-    const peopleOpsPages = response.results.filter(page => {
-      return normalizeId(page.id) === normalizeId(peopleOpsId) ||
-             normalizeId(page.parent?.page_id || '') === normalizeId(peopleOpsId);
-    });
-    console.log('People Ops pages found:', peopleOpsPages.length);
-    let allText = '';
-    for (const page of peopleOpsPages) {
-      const title = page.properties?.title?.title?.[0]?.plain_text ||
-                    page.properties?.Name?.title?.[0]?.plain_text ||
-                    'Untitled';
-      console.log('Reading page:', title);
-      allText += '\n\n# ' + title + '\n';
-      allText += await getPageText(page.id);
-    }
-    return allText;
+    console.log('Reading People Ops page...');
+    const text = await getPageText(process.env.NOTION_PAGE_ID);
+    console.log('Content length:', text.length);
+    return text;
   } catch (e) {
     console.error('getNotionContent error:', e.message);
     return '';
@@ -101,4 +84,29 @@ slack.event('app_mention', async ({ event, say }) => {
   }
 });
 
-slack.ev
+slack.event('message', async ({ event, say }) => {
+  if (event.channel_type === 'im' && !event.bot_id) {
+    console.log('DM received:', event.text);
+    try {
+      const notionContent = await getNotionContent();
+      const answer = await askClaude(event.text, notionContent);
+      await say(answer);
+    } catch (e) {
+      console.error('DM error:', e.message);
+      await say('Sorry, I ran into an error. Please try again or contact the People team directly.');
+    }
+  }
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err.message);
+});
+
+(async () => {
+  try {
+    await slack.start();
+    console.log('Ask People Team bot is running!');
+  } catch (e) {
+    console.error('Failed to start:', e.message);
+  }
+})();

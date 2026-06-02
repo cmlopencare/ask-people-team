@@ -25,31 +25,43 @@ async function getNotionContent() {
   }
 }
 
-slack.event('app_mention', async ({ event, say }) => {
-  try {
-    const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
-    const notionContent = await getNotionContent();
-
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-4-20250514',
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: `You are Opencare's HR assistant. Use the HR documentation below to answer the employee's question accurately and concisely. If the answer isn't in the documentation, say so politely and suggest they contact the People team directly.
+async function askClaude(question, notionContent) {
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-20250514',
+    max_tokens: 1000,
+    messages: [{
+      role: 'user',
+      content: `You are Opencare's HR assistant. Use the HR documentation below to answer the employee's question accurately and concisely. If the answer isn't in the documentation, say so politely and suggest they contact the People team directly.
 
 HR Documentation:
 ${notionContent}
 
 Employee question: ${question}`
-      }]
-    });
+    }]
+  });
+  return response.content[0].text;
+}
 
-    await say({
-      text: response.content[0].text,
-      thread_ts: event.ts,
-    });
+slack.event('app_mention', async ({ event, say }) => {
+  try {
+    const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    const notionContent = await getNotionContent();
+    const answer = await askClaude(question, notionContent);
+    await say({ text: answer, thread_ts: event.ts });
   } catch (e) {
     await say({ text: 'Sorry, I ran into an error. Please try again or contact the People team directly.', thread_ts: event.ts });
+  }
+});
+
+slack.event('message', async ({ event, say }) => {
+  if (event.channel_type === 'im' && !event.bot_id) {
+    try {
+      const notionContent = await getNotionContent();
+      const answer = await askClaude(event.text, notionContent);
+      await say(answer);
+    } catch (e) {
+      await say('Sorry, I ran into an error. Please try again or contact the People team directly.');
+    }
   }
 });
 

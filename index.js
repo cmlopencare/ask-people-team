@@ -48,14 +48,19 @@ async function getPageText(pageId) {
 
 async function getNotionContent() {
   try {
+    const peopleOpsId = process.env.NOTION_PAGE_ID;
     const response = await notion.search({
       filter: { property: 'object', value: 'page' },
+      page_size: 50,
     });
-    console.log('Notion pages found:', response.results.length);
+    const peopleOpsPages = response.results.filter(page => {
+      return page.id === peopleOpsId || page.parent?.page_id === peopleOpsId;
+    });
+    console.log('People Ops pages found:', peopleOpsPages.length);
     let allText = '';
-    for (const page of response.results) {
-      const title = page.properties?.title?.title?.[0]?.plain_text || 
-                    page.properties?.Name?.title?.[0]?.plain_text || 
+    for (const page of peopleOpsPages) {
+      const title = page.properties?.title?.title?.[0]?.plain_text ||
+                    page.properties?.Name?.title?.[0]?.plain_text ||
                     'Untitled';
       console.log('Reading page:', title);
       allText += '\n\n# ' + title + '\n';
@@ -70,7 +75,7 @@ async function getNotionContent() {
 
 async function askClaude(question, notionContent) {
   const response = await anthropic.messages.create({
-    model: 'claude-opus-4-20250514',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 1000,
     messages: [{
       role: 'user',

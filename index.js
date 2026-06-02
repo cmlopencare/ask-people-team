@@ -2,13 +2,6 @@ const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
 
-console.log('Starting up...');
-console.log('SLACK_BOT_TOKEN:', process.env.SLACK_BOT_TOKEN ? 'SET' : 'MISSING');
-console.log('SLACK_APP_TOKEN:', process.env.SLACK_APP_TOKEN ? 'SET' : 'MISSING');
-console.log('ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'SET' : 'MISSING');
-console.log('NOTION_API_KEY:', process.env.NOTION_API_KEY ? 'SET' : 'MISSING');
-console.log('NOTION_PAGE_ID:', process.env.NOTION_PAGE_ID ? 'SET' : 'MISSING');
-
 const slack = new App({
   token: process.env.SLACK_BOT_TOKEN,
   appToken: process.env.SLACK_APP_TOKEN,
@@ -18,22 +11,22 @@ const slack = new App({
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
 
-async function getPageText(blockId) {
+async function getPageText(pageId) {
   try {
-    const response = await notion.blocks.children.list({ block_id: blockId });
+    const response = await notion.blocks.children.list({ block_id: pageId });
     let text = '';
     for (const block of response.results) {
       if (block.paragraph?.rich_text) {
         text += block.paragraph.rich_text.map(t => t.plain_text).join('') + '\n';
       }
       if (block.heading_1?.rich_text) {
-        text += block.heading_1.rich_text.map(t => t.plain_text).join('') + '\n';
+        text += '# ' + block.heading_1.rich_text.map(t => t.plain_text).join('') + '\n';
       }
       if (block.heading_2?.rich_text) {
-        text += block.heading_2.rich_text.map(t => t.plain_text).join('') + '\n';
+        text += '## ' + block.heading_2.rich_text.map(t => t.plain_text).join('') + '\n';
       }
       if (block.heading_3?.rich_text) {
-        text += block.heading_3.rich_text.map(t => t.plain_text).join('') + '\n';
+        text += '### ' + block.heading_3.rich_text.map(t => t.plain_text).join('') + '\n';
       }
       if (block.bulleted_list_item?.rich_text) {
         text += '• ' + block.bulleted_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
@@ -48,13 +41,31 @@ async function getPageText(blockId) {
     }
     return text;
   } catch (e) {
-    console.error('Notion error:', e.message);
+    console.error('getPageText error:', e.message);
     return '';
   }
 }
 
 async function getNotionContent() {
-  return await getPageText(process.env.NOTION_PAGE_ID);
+  try {
+    const response = await notion.search({
+      filter: { property: 'object', value: 'page' },
+    });
+    console.log('Notion pages found:', response.results.length);
+    let allText = '';
+    for (const page of response.results) {
+      const title = page.properties?.title?.title?.[0]?.plain_text || 
+                    page.properties?.Name?.title?.[0]?.plain_text || 
+                    'Untitled';
+      console.log('Reading page:', title);
+      allText += '\n\n# ' + title + '\n';
+      allText += await getPageText(page.id);
+    }
+    return allText;
+  } catch (e) {
+    console.error('getNotionContent error:', e.message);
+    return '';
+  }
 }
 
 async function askClaude(question, notionContent) {
@@ -70,7 +81,7 @@ async function askClaude(question, notionContent) {
 }
 
 slack.event('app_mention', async ({ event, say }) => {
-  console.log('app_mention event received:', event.text);
+  console.log('app_mention received:', event.text);
   try {
     const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
     const notionContent = await getNotionContent();

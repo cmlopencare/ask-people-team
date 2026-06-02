@@ -1,0 +1,13 @@
+{
+  "name": "ask-people-team",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.17.0",
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@notionhq/client": "^2.2.14"
+  }
+}

@@ -20,4 +20,71 @@ async function getPageText(blockId) {
         text += block.paragraph.rich_text.map(t => t.plain_text).join('') + '\n';
       }
       if (block.heading_1?.rich_text) {
-        text += block.heading_1.rich_text.map(t => t.plain_text).
+        text += block.heading_1.rich_text.map(t => t.plain_text).join('') + '\n';
+      }
+      if (block.heading_2?.rich_text) {
+        text += block.heading_2.rich_text.map(t => t.plain_text).join('') + '\n';
+      }
+      if (block.heading_3?.rich_text) {
+        text += block.heading_3.rich_text.map(t => t.plain_text).join('') + '\n';
+      }
+      if (block.bulleted_list_item?.rich_text) {
+        text += '• ' + block.bulleted_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
+      }
+      if (block.numbered_list_item?.rich_text) {
+        text += block.numbered_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
+      }
+      if (block.type === 'child_page') {
+        text += '\n## ' + block.child_page.title + '\n';
+        text += await getPageText(block.id);
+      }
+    }
+    return text;
+  } catch (e) {
+    return '';
+  }
+}
+
+async function getNotionContent() {
+  return await getPageText(process.env.NOTION_PAGE_ID);
+}
+
+async function askClaude(question, notionContent) {
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-20250514',
+    max_tokens: 1000,
+    messages: [{
+      role: 'user',
+      content: 'You are Opencare HR assistant. Use the HR documentation below to answer the employee question accurately and concisely. If the answer is not in the documentation, say so politely and suggest they contact the People team directly.\n\nHR Documentation:\n' + notionContent + '\n\nEmployee question: ' + question
+    }]
+  });
+  return response.content[0].text;
+}
+
+slack.event('app_mention', async ({ event, say }) => {
+  try {
+    const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    const notionContent = await getNotionContent();
+    const answer = await askClaude(question, notionContent);
+    await say({ text: answer, thread_ts: event.ts });
+  } catch (e) {
+    await say({ text: 'Sorry, I ran into an error. Please try again or contact the People team directly.', thread_ts: event.ts });
+  }
+});
+
+slack.event('message', async ({ event, say }) => {
+  if (event.channel_type === 'im' && !event.bot_id) {
+    try {
+      const notionContent = await getNotionContent();
+      const answer = await askClaude(event.text, notionContent);
+      await say(answer);
+    } catch (e) {
+      await say('Sorry, I ran into an error. Please try again or contact the People team directly.');
+    }
+  }
+});
+
+(async () => {
+  await slack.start();
+  console.log('Ask People Team bot is running!');
+})();

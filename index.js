@@ -1,4 +1,4 @@
-// v2
+// v3
 const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
@@ -30,7 +30,6 @@ async function getPageText(pageId) {
       } else if (block.numbered_list_item?.rich_text) {
         text += block.numbered_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
       } else if (block.type === 'child_page') {
-        console.log('Reading child_page:', block.child_page.title);
         text += '\n## ' + block.child_page.title + '\n';
         text += await getPageText(block.id);
       } else if (block.type === 'column_list' || block.type === 'column') {
@@ -44,12 +43,26 @@ async function getPageText(pageId) {
   }
 }
 
-async function getNotionContent() {
+async function getNotionContent(question) {
   try {
-    console.log('Reading People Ops page...');
-    const text = await getPageText(process.env.NOTION_PAGE_ID);
-    console.log('Content length:', text.length);
-    return text;
+    console.log('Searching Notion for:', question);
+    const response = await notion.search({
+      query: question,
+      filter: { property: 'object', value: 'page' },
+      page_size: 3,
+    });
+    console.log('Pages found:', response.results.length);
+    let allText = '';
+    for (const page of response.results) {
+      const title = page.properties?.title?.title?.[0]?.plain_text ||
+                    page.properties?.Name?.title?.[0]?.plain_text ||
+                    'Untitled';
+      console.log('Reading:', title);
+      allText += '\n## ' + title + '\n';
+      allText += await getPageText(page.id);
+    }
+    console.log('Content length:', allText.length);
+    return allText;
   } catch (e) {
     console.error('getNotionContent error:', e.message);
     return '';
@@ -72,7 +85,7 @@ slack.event('app_mention', async ({ event, say }) => {
   console.log('app_mention received:', event.text);
   try {
     const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
-    const notionContent = await getNotionContent();
+    const notionContent = await getNotionContent(question);
     const answer = await askClaude(question, notionContent);
     await say({ text: answer, thread_ts: event.ts });
   } catch (e) {
@@ -85,7 +98,7 @@ slack.event('message', async ({ event, say }) => {
   if (event.channel_type === 'im' && !event.bot_id) {
     console.log('DM received:', event.text);
     try {
-      const notionContent = await getNotionContent();
+      const notionContent = await getNotionContent(event.text);
       const answer = await askClaude(event.text, notionContent);
       await say(answer);
     } catch (e) {

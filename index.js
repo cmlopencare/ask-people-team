@@ -1,4 +1,4 @@
-// v10
+// v11
 const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
@@ -23,7 +23,7 @@ const HR_PAGES = [
   { id: '882c8f5a9c9a40e395b6baa8c05afc77', title: 'Expenses & Reimbursements', keywords: ['expense', 'reimburs', 'receipt', 'claim', 'spend', 'cost'] },
   { id: '8cc07d204de44305b09e603502be5f31', title: 'Leaves under ESA (Canada)', keywords: ['leave', 'esa', 'canada', 'absence', 'sick'] },
   { id: '1147c971cf944ead89bfe981c4377813', title: 'Pregnancy + Parental Leave (Canada)', keywords: ['pregnant', 'pregnancy', 'parental', 'maternity', 'paternity', 'baby', 'canada'] },
-  { id: '160c91da238e404e8dd2fcfb542aaf2d', title: 'Pregnancy + Parental Leave (USA)', keywords: ['pregnant', 'pregnancy', 'parental', 'maternity', 'paternity', 'baby', 'usa', 'us'] },
+  { id: '160c91da238e404e8dd2fcfb542aaf2d', title: 'Pregnancy + Parental Leave (USA)', keywords: ['pregnant', 'pregnancy', 'parental', 'maternity', 'paternity', 'baby', 'usa'] },
   { id: '440e2da6956a46d592e12d5596522edd', title: 'Health & Safety Policy', keywords: ['health', 'safety', 'injury', 'accident', 'workplace'] },
   { id: 'a3af9f6dd6184d0b87e3b499f6e91f13', title: 'Workplace Violence and Harassment Policy', keywords: ['harassment', 'violence', 'bullying', 'discrimination', 'workplace'] },
   { id: '7e1d4b8bc0044fdebe5b026069f7f178', title: 'Promotion Policy & Process', keywords: ['promot', 'promotion', 'career', 'advance', 'raise', 'level up', 'growth'] },
@@ -44,12 +44,12 @@ const HR_PAGES = [
   { id: '5d051d9e06424b20ba8fd02ff5f50632', title: 'DEI @ Opencare', keywords: ['dei', 'diversity', 'equity', 'inclusion', 'belonging'] },
   { id: '8fe878dcc94d4bc486fd02f73b7966f4', title: 'Compensation (HQ Team)', keywords: ['compensation', 'salary', 'pay', 'wage', 'comp'] },
   { id: '0567d0a867ee45eab5d35976ebcd6ab2', title: 'Stock Options (HQ Team)', keywords: ['stock', 'option', 'equity', 'shares', 'vesting'] },
-  { id: '2f264d7de81a44b0ae8a73e459cac50c', title: 'PH Orientation Documents', keywords: ['philippines', 'ph', 'orientation', 'onboard', 'ph pto', 'ph holiday', 'ph leave', 'philippine'] },
+  { id: '2f264d7de81a44b0ae8a73e459cac50c', title: 'PH Orientation Documents', keywords: ['philippines', 'philippine', 'ph orientation', 'ph onboard'] },
   { id: '75af0411087446ebba2a52ffc2d38542', title: 'HIPPA & Device Encryption', keywords: ['hippa', 'hipaa', 'encryption', 'device', 'security', 'privacy'] },
   { id: '3ce4d02ddb6c493ab3bdd53da233ba8a', title: 'Daily Expectation', keywords: ['expectation', 'daily', 'schedule', 'hours', 'work hours'] },
-  { id: '747bb2c00f2647a1b08ecf31122b76e4', title: 'HMO', keywords: ['hmo', 'health', 'medical', 'insurance', 'philippines', 'ph'] },
-  { id: 'aeeaff3c96d24df88abb6e53cf402025', title: 'PTO & Holiday Pay Policy', keywords: ['pto', 'holiday pay', 'vacation pay', 'time off', 'ph', 'philippines', 'philippine'] },
-  { id: '30830bf17bbf47a39102a772ef505cf4', title: 'Leave of Absence', keywords: ['leave', 'absence', 'loa', 'time off', 'unpaid'] },
+  { id: '747bb2c00f2647a1b08ecf31122b76e4', title: 'HMO', keywords: ['hmo', 'health maintenance', 'philippines health', 'ph health'] },
+  { id: 'aeeaff3c96d24df88abb6e53cf402025', title: 'PTO & Holiday Pay Policy', keywords: ['ph pto', 'ph holiday', 'philippines pto', 'philippines holiday', 'holiday pay', 'ph leave', 'philippines leave', 'sling', 'dole', 'philippine holiday', 'ph time off'] },
+  { id: '30830bf17bbf47a39102a772ef505cf4', title: 'Leave of Absence', keywords: ['leave of absence', 'loa', 'unpaid leave', 'extended leave'] },
   { id: '102be1b8238345ada6830a27155c3267', title: 'Resignation Guidelines', keywords: ['resign', 'resignation', 'quit', 'notice', 'leaving', 'two weeks'] },
   { id: 'a29d327f836a4bd8b88343ccdf473910', title: 'Stages for Performance Improvement', keywords: ['pip', 'performance improvement', 'improvement plan', 'underperform'] },
 ];

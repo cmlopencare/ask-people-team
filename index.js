@@ -1,4 +1,4 @@
-// v9
+// v10
 const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
@@ -98,7 +98,7 @@ async function getPageText(pageId) {
 async function getNotionContent(question) {
   try {
     console.log('Finding relevant pages for:', question);
-    const q = question.toLowerCase();
+    const q = question.toLowerCase().replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
     const relevant = HR_PAGES.filter(page =>
       page.keywords.some(keyword => q.includes(keyword))
     );
@@ -132,7 +132,7 @@ async function askClaude(question, notionContent) {
 slack.event('app_mention', async ({ event, say }) => {
   console.log('app_mention received:', event.text);
   try {
-    const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
+    const question = event.text.replace(/<@[A-Z0-9]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
     const notionContent = await getNotionContent(question);
     const answer = await askClaude(question, notionContent);
     await say({ text: answer, thread_ts: event.ts });
@@ -146,8 +146,9 @@ slack.event('message', async ({ event, say }) => {
   if (event.channel_type === 'im' && !event.bot_id) {
     console.log('DM received:', event.text);
     try {
-      const notionContent = await getNotionContent(event.text);
-      const answer = await askClaude(event.text, notionContent);
+      const question = event.text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const notionContent = await getNotionContent(question);
+      const answer = await askClaude(question, notionContent);
       await say(answer);
     } catch (e) {
       console.error('DM error:', e.message);

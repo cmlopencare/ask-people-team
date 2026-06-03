@@ -1,4 +1,4 @@
-// v3
+// v4
 const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
@@ -54,9 +54,8 @@ async function getNotionContent(question) {
     console.log('Pages found:', response.results.length);
     let allText = '';
     for (const page of response.results) {
-      const title = page.properties?.title?.title?.[0]?.plain_text ||
-                    page.properties?.Name?.title?.[0]?.plain_text ||
-                    'Untitled';
+      const titleProp = Object.values(page.properties || {}).find(p => p.type === 'title');
+      const title = titleProp?.title?.[0]?.plain_text || page.url || 'Untitled';
       console.log('Reading:', title);
       allText += '\n## ' + title + '\n';
       allText += await getPageText(page.id);

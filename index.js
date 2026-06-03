@@ -18,25 +18,23 @@ async function getPageText(pageId) {
     for (const block of response.results) {
       if (block.paragraph?.rich_text) {
         text += block.paragraph.rich_text.map(t => t.plain_text).join('') + '\n';
-      }
-      if (block.heading_1?.rich_text) {
+      } else if (block.heading_1?.rich_text) {
         text += '# ' + block.heading_1.rich_text.map(t => t.plain_text).join('') + '\n';
-      }
-      if (block.heading_2?.rich_text) {
+      } else if (block.heading_2?.rich_text) {
         text += '## ' + block.heading_2.rich_text.map(t => t.plain_text).join('') + '\n';
-      }
-      if (block.heading_3?.rich_text) {
+      } else if (block.heading_3?.rich_text) {
         text += '### ' + block.heading_3.rich_text.map(t => t.plain_text).join('') + '\n';
-      }
-      if (block.bulleted_list_item?.rich_text) {
+      } else if (block.bulleted_list_item?.rich_text) {
         text += '• ' + block.bulleted_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
-      }
-      if (block.numbered_list_item?.rich_text) {
+      } else if (block.numbered_list_item?.rich_text) {
         text += block.numbered_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
-      }
-      if (block.type === 'child_page') {
-        console.log('Reading subpage:', block.child_page.title);
+      } else if (block.type === 'child_page') {
+        console.log('Reading child_page:', block.child_page.title);
         text += '\n## ' + block.child_page.title + '\n';
+        text += await getPageText(block.id);
+      } else if (block.type === 'column_list' || block.type === 'column') {
+        text += await getPageText(block.id);
+      } else if (block.has_children) {
         text += await getPageText(block.id);
       }
     }

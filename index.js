@@ -1,4 +1,4 @@
-// v5
+// v6
 const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
@@ -11,6 +11,12 @@ const slack = new App({
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const notion = new Client({ auth: process.env.NOTION_API_KEY });
+
+const HR_PAGES = [
+  { id: '464e082bcbcf440291404233770cb6ef', title: 'Company Holidays' },
+  { id: '882c8f5a9c9a40e395b6baa8c05afc77', title: 'Expenses & Reimbursements' },
+  { id: '06fbb0ca864647b6b263a16cf0441a32', title: 'Unlimited Vacation Policy' },
+];
 
 async function getPageText(pageId) {
   try {
@@ -55,19 +61,11 @@ async function getPageText(pageId) {
 
 async function getNotionContent(question) {
   try {
-    console.log('Searching Notion for:', question);
-    const response = await notion.search({
-      query: question,
-      filter: { property: 'object', value: 'page' },
-      page_size: 3,
-    });
-    console.log('Pages found:', response.results.length);
+    console.log('Reading HR pages for:', question);
     let allText = '';
-    for (const page of response.results) {
-      const titleProp = Object.values(page.properties || {}).find(p => p.type === 'title');
-      const title = titleProp?.title?.[0]?.plain_text || page.url || 'Untitled';
-      console.log('Reading:', title);
-      allText += '\n## ' + title + '\n';
+    for (const page of HR_PAGES) {
+      console.log('Reading:', page.title);
+      allText += '\n## ' + page.title + '\n';
       allText += await getPageText(page.id);
     }
     console.log('Content length:', allText.length);

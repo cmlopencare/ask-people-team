@@ -34,8 +34,6 @@ async function getPageText(pageId) {
         text += await getPageText(block.id);
       } else if (block.type === 'column_list' || block.type === 'column') {
         text += await getPageText(block.id);
-      } else if (block.has_children) {
-        text += await getPageText(block.id);
       }
     }
     return text;

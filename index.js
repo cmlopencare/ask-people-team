@@ -1,4 +1,4 @@
-// v4
+// v5
 const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
@@ -29,6 +29,16 @@ async function getPageText(pageId) {
         text += '• ' + block.bulleted_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
       } else if (block.numbered_list_item?.rich_text) {
         text += block.numbered_list_item.rich_text.map(t => t.plain_text).join('') + '\n';
+      } else if (block.type === 'table') {
+        const tableRows = await notion.blocks.children.list({ block_id: block.id });
+        for (const row of tableRows.results) {
+          if (row.type === 'table_row') {
+            const cells = row.table_row.cells.map(cell =>
+              cell.map(t => t.plain_text).join('')
+            );
+            text += cells.join(' | ') + '\n';
+          }
+        }
       } else if (block.type === 'child_page') {
         text += '\n## ' + block.child_page.title + '\n';
         text += await getPageText(block.id);

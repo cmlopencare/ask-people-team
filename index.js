@@ -2,7 +2,7 @@ const { App } = require('@slack/bolt');
 const Anthropic = require('@anthropic-ai/sdk');
 const { Client } = require('@notionhq/client');
 
-console.log('Starting up...');
+console.log('=== Ask People Team Bot Starting ===');
 console.log('SLACK_BOT_TOKEN:', process.env.SLACK_BOT_TOKEN ? 'SET' : 'MISSING');
 console.log('SLACK_APP_TOKEN:', process.env.SLACK_APP_TOKEN ? 'SET' : 'MISSING');
 console.log('ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? 'SET' : 'MISSING');
@@ -29,26 +29,20 @@ async function fetchNotionContent() {
     return notionCache;
   }
 
-  console.log('Fetching Notion content...');
+  console.log('Fetching fresh Notion content...');
   const rootPageId = process.env.NOTION_PAGE_ID;
   let allText = '';
 
-  async function extractPageText(pageId, depth = 0) {
-    if (depth > 3) return; // Don't go too deep
+  async function extractPageText(pageId, depth) {
+    if (depth > 2) return;
     try {
-      // Get page blocks
       const blocks = await notion.blocks.children.list({ block_id: pageId, page_size: 100 });
       for (const block of blocks.results) {
-        // Extract text from common block types
-        const richText =
-          block[block.type]?.rich_text ||
-          block[block.type]?.text ||
-          [];
+        const richText = block[block.type]?.rich_text || block[block.type]?.text || [];
         if (richText.length > 0) {
           const text = richText.map(t => t.plain_text).join('');
           if (text.trim()) allText += text + '\n';
         }
-        // Recurse into child pages and synced blocks
         if (block.type === 'child_page' && depth < 2) {
           allText += `\n--- ${block.child_page.title} ---\n`;
           await extractPageText(block.id, depth + 1);
@@ -57,18 +51,19 @@ async function fetchNotionContent() {
         }
       }
     } catch (err) {
-      console.error(`Error fetching page ${pageId}:`, err.message);
+      console.error('Notion fetch error for page', pageId, ':', err.message);
     }
   }
 
-  await extractPageText(rootPageId);
+  await extractPageText(rootPageId, 0);
   notionCache = allText;
   cacheTime = Date.now();
-  console.log(`Fetched ${allText.length} chars from Notion`);
+  console.log('Notion content fetched, length:', allText.length, 'chars');
   return allText;
 }
 
 async function askClaude(question, notionContent) {
+  console.log('Calling Claude API...');
   const systemPrompt = `You are the People Assistant for Opencare — a friendly, knowledgeable HR support bot available in Slack. Your role is to answer HR and People Ops questions quickly and accurately.
 
 You have access to Opencare's People Ops policies below. Answer questions based on this content. If the answer isn't in the policies, say so honestly and suggest the employee reach out to the People team directly.
@@ -81,21 +76,25 @@ IMPORTANT: Do not surface or discuss individual employee salaries, compensation,
 ${notionContent}
 --- END OF POLICIES ---`;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-20250514',
-    max_tokens: 1024,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: question }],
-  });
-
-  return response.content[0].text;
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: question }],
+    });
+    console.log('Claude API response received');
+    return response.content[0].text;
+  } catch (err) {
+    console.error('Claude API error:', err.message);
+    throw err;
+  }
 }
 
 // ─── Handle @mentions in public AND private channels ───────────────────────
 app.event('app_mention', async ({ event, say }) => {
-  console.log('app_mention event received in channel:', event.channel, 'type:', event.channel_type);
+  console.log('app_mention received in channel:', event.channel, '| text:', event.text);
 
-  // Strip the bot mention from the text
   const question = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
   if (!question) {
     await say({ text: "Hi! Ask me anything about Opencare's People Ops policies 👋", thread_ts: event.ts });
@@ -104,23 +103,25 @@ app.event('app_mention', async ({ event, say }) => {
 
   try {
     await say({ text: '⏳ Looking that up for you...', thread_ts: event.ts });
+    console.log('Fetching Notion content...');
     const notionContent = await fetchNotionContent();
+    console.log('Calling Claude with question:', question);
     const answer = await askClaude(question, notionContent);
+    console.log('Got answer, sending to Slack...');
     await say({ text: answer, thread_ts: event.ts });
+    console.log('Reply sent successfully');
   } catch (err) {
-    console.error('Error handling app_mention:', err);
+    console.error('Error in app_mention handler:', err);
     await say({ text: "Sorry, I ran into an error. Please try again or reach out to the People team directly.", thread_ts: event.ts });
   }
 });
 
-// ─── Handle direct messages (no @mention needed in DMs) ────────────────────
+// ─── Handle direct messages ─────────────────────────────────────────────────
 app.message(async ({ message, say }) => {
-  // Only handle DMs (channel_type === 'im') and ignore bot messages / edits
   if (message.channel_type !== 'im' || message.subtype) return;
-  // Also ignore if it's already handled by app_mention
   if (message.text && message.text.includes('<@')) return;
 
-  console.log('DM message received from:', message.user);
+  console.log('DM received from user:', message.user, '| text:', message.text);
 
   const question = message.text?.trim();
   if (!question) return;
@@ -130,14 +131,15 @@ app.message(async ({ message, say }) => {
     const notionContent = await fetchNotionContent();
     const answer = await askClaude(question, notionContent);
     await say({ text: answer });
+    console.log('DM reply sent successfully');
   } catch (err) {
-    console.error('Error handling DM:', err);
+    console.error('Error in DM handler:', err);
     await say({ text: "Sorry, I ran into an error. Please try again or reach out to the People team directly." });
   }
 });
 
-// ─── Start ──────────────────────────────────────────────────────────────────
+// ─── Start ───────────────────────────────────────────────────────────────────
 (async () => {
   await app.start();
-  console.log('⚡ Ask People Team bot is running!');
+  console.log('=== Ask People Team Bot is LIVE ===');
 })();
